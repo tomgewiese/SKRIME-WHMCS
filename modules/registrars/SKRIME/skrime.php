@@ -15,6 +15,7 @@ if (!defined("WHMCS")) {
 use WHMCS\Domains\DomainLookup\ResultsList;
 use WHMCS\Domains\DomainLookup\SearchResult;
 use GuzzleHttp\Client;
+use WHMCS\Database\Capsule;
 
 /**
  * Define module related metadata
@@ -24,7 +25,7 @@ use GuzzleHttp\Client;
 function skrime_MetaData()
 {
     return array(
-        'DisplayName' => 'Skrime Registrar Module',
+        'DisplayName' => 'SKRIME',
         'APIVersion' => '1.1',
     );
 }
@@ -39,13 +40,13 @@ function skrime_getConfigArray()
     return array(
         'FriendlyName' => array(
             'Type' => 'System',
-            'Value' => 'Skrime Registrar Module',
+            'Value' => 'SKRIME',
         ),
         'apiKey' => array(
             'FriendlyName' => 'API Key',
             'Type' => 'text',
             'Size' => '50',
-            'Description' => 'Enter your Skrime API Key here',
+            'Description' => 'Enter your SKRIME API Key here',
         ),
     );
 }
@@ -55,16 +56,37 @@ function skrime_getConfigArray()
  *
  * @param string $endpoint
  * @param array $postfields
+ * @param string $method
+ * @param array $params
  * @return array
  */
-function skrime_makeApiRequest($endpoint, $postfields)
+function skrime_makeApiRequest($endpoint, $postfields = [], $method = 'POST', $params = [])
 {
+    $apiKey = $params['apiKey'];
+
     $client = new Client();
-    $response = $client->request('POST', 'https://skrime.eu/api/' . $endpoint, [
+    $options = [
+        'headers' => [
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ],
         'json' => $postfields,
-    ]);
+    ];
+
+    $response = $client->request($method, 'https://skrime.eu/api/' . $endpoint, $options);
 
     return json_decode($response->getBody(), true);
+}
+
+function extractStreetAndNumber($address)
+{
+    // Regular expression to match the street name and house number
+    // This assumes the house number is at the end of the string and contains numbers
+    if (preg_match('/^(.+?)\s?(\d+.*)$/', $address, $matches)) {
+        return [$matches[1], $matches[2]];
+    }
+    // If the regex fails, return the whole address as street and empty number
+    return [$address, ''];
 }
 
 /**
@@ -75,6 +97,8 @@ function skrime_makeApiRequest($endpoint, $postfields)
  */
 function skrime_RegisterDomain($params)
 {
+    list($street, $number) = extractStreetAndNumber($params["address1"]);
+
     $postfields = [
         'domain' => $params['sld'] . '.' . $params['tld'],
         'authCode' => '',
@@ -82,21 +106,21 @@ function skrime_RegisterDomain($params)
             'company' => $params["companyname"],
             'firstname' => $params["firstname"],
             'lastname' => $params["lastname"],
-            'street' => $params["address1"],
-            'number' => '',
+            'street' => $street,
+            'number' => $number,
             'postcode' => $params["postcode"],
             'city' => $params["city"],
             'state' => $params["state"],
             'country' => $params["countrycode"],
             'email' => $params["email"],
-            'phone' => $params["phonenumber"],
+            'phone' => $params["fullphonenumber"],
         ],
         'tos' => true,
-        'cancellation' => false,
+        'cancellation' => true,
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/order', $postfields);
+        $result = skrime_makeApiRequest('domain/order', $postfields, 'POST', $params);
 
         if ($result['state'] === 'success') {
             return ['success' => true];
@@ -116,6 +140,9 @@ function skrime_RegisterDomain($params)
  */
 function skrime_TransferDomain($params)
 {
+    list($street, $number) = extractStreetAndNumber($params["address1"]);
+
+
     $postfields = [
         'domain' => $params['sld'] . '.' . $params['tld'],
         'authCode' => $params['eppcode'],
@@ -123,21 +150,21 @@ function skrime_TransferDomain($params)
             'company' => $params["companyname"],
             'firstname' => $params["firstname"],
             'lastname' => $params["lastname"],
-            'street' => $params["address1"],
-            'number' => '',
+            'street' => $street,
+            'number' => $number,
             'postcode' => $params["postcode"],
             'city' => $params["city"],
             'state' => $params["state"],
             'country' => $params["countrycode"],
             'email' => $params["email"],
-            'phone' => $params["phonenumber"],
+            'phone' => $params["fullphonenumber"],
         ],
         'tos' => true,
-        'cancellation' => false,
+        'cancellation' => true,
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/order', $postfields);
+        $result = skrime_makeApiRequest('domain/order', $postfields, 'POST', $params);
 
         if ($result['state'] === 'success') {
             return ['success' => true];
@@ -162,7 +189,7 @@ function skrime_RenewDomain($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/renew', $postfields);
+        $result = skrime_makeApiRequest('domain/renew', $postfields, 'POST', $params);
 
         if ($result['state'] === 'success') {
             return ['success' => true];
@@ -187,7 +214,7 @@ function skrime_GetNameservers($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/nameserver', $postfields);
+        $result = skrime_makeApiRequest('domain/nameserver', $postfields, 'GET', $params);
 
         if ($result['state'] === 'success') {
             return [
@@ -196,6 +223,7 @@ function skrime_GetNameservers($params)
                 'ns3' => isset($result['data']['nameserver'][2]) ? $result['data']['nameserver'][2] : '',
                 'ns4' => isset($result['data']['nameserver'][3]) ? $result['data']['nameserver'][3] : '',
                 'ns5' => isset($result['data']['nameserver'][4]) ? $result['data']['nameserver'][4] : '',
+                'ns6' => isset($result['data']['nameserver'][5]) ? $result['data']['nameserver'][5] : '',
             ];
         }
 
@@ -221,11 +249,12 @@ function skrime_SaveNameservers($params)
             $params['ns3'],
             $params['ns4'],
             $params['ns5'],
+            $params['ns6'],
         ]),
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/nameserver', $postfields);
+        $result = skrime_makeApiRequest('domain/nameserver', $postfields, 'POST', $params);
 
         if ($result['state'] === 'success') {
             return ['success' => true];
@@ -250,7 +279,7 @@ function skrime_GetContactDetails($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/single', $postfields);
+        $result = skrime_makeApiRequest('domain/single', $postfields, 'GET', $params);
 
         if ($result['state'] === 'success') {
             $contact = $result['data']['productInfo']['contact'];
@@ -304,7 +333,7 @@ function skrime_SaveContactDetails($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/order', $postfields);
+        $result = skrime_makeApiRequest('domain/order', $postfields, 'POST', $params);
 
         if ($result['state'] === 'success') {
             return ['success' => true];
@@ -329,7 +358,7 @@ function skrime_CheckAvailability($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/check', $postfields);
+        $result = skrime_makeApiRequest('domain/check', $postfields, 'POST', $params);
 
         $results = new ResultsList();
         $searchResult = new SearchResult($params['searchTerm'], $params['tldsToInclude'][0]);
@@ -364,7 +393,7 @@ function skrime_GetDNS($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/dns', $postfields);
+        $result = skrime_makeApiRequest('domain/dns', $postfields, 'GET', $params);
 
         if ($result['state'] === 'success') {
             $records = [];
@@ -399,7 +428,7 @@ function skrime_SaveDNS($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/dns', $postfields);
+        $result = skrime_makeApiRequest('domain/dns', $postfields, 'POST', $params);
 
         if ($result['state'] === 'success') {
             return ['success' => true];
@@ -409,4 +438,126 @@ function skrime_SaveDNS($params)
     } catch (\Exception $e) {
         return ['error' => $e->getMessage()];
     }
+}
+
+/**
+ * Fetch all domains.
+ *
+ * @param array $params common module parameters
+ * @return array
+ */
+function skrime_GetAllDomains($params)
+{
+    try {
+        $result = skrime_makeApiRequest('domain/all', [], 'GET', $params);
+
+        if ($result['state'] === 'success') {
+            return $result['data'];
+        }
+
+        return ['error' => $result['response']];
+    } catch (\Exception $e) {
+        return ['error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Fetch domain pricelist.
+ *
+ * @param array $params common module parameters
+ * @return array
+ */
+function skrime_GetDomainPricelist($params)
+{
+    try {
+        $result = skrime_makeApiRequest('domain/pricelist', [], 'GET', $params);
+
+        if ($result['state'] === 'success') {
+            return $result['data'];
+        }
+
+        return ['error' => $result['response']];
+    } catch (\Exception $e) {
+        return ['error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Fetch auth code for a domain.
+ *
+ * @param array $params common module parameters
+ * @return array
+ */
+function skrime_GetAuthCode($params)
+{
+    $postfields = [
+        'domain' => $params['sld'] . '.' . $params['tld'],
+    ];
+
+    try {
+        $result = skrime_makeApiRequest('domain/authcode', $postfields, 'GET', $params);
+
+        if ($result['state'] === 'success') {
+            return $result['data'];
+        }
+
+        return ['error' => $result['response']];
+    } catch (\Exception $e) {
+        return ['error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Synchronize TLDs and import prices from SKRIME.
+ *
+ * @return array
+ */
+function skrime_ImportTldAndPrices($params)
+{
+    $pricelist = skrime_GetDomainPricelist($params);
+    if (isset($pricelist['error'])) {
+        return ['error' => $pricelist['error']];
+    }
+
+    foreach ($pricelist as $price) {
+        $tld = $price['tld'];
+
+        $query = Capsule::table('tbldomainpricing')
+            ->where('extension', '=', $tld);
+
+        if ($query->count() == 0) {
+            Capsule::table('tbldomainpricing')
+                ->insert([
+                    'extension' => $tld,
+                    'dnsmanagement' => '1',
+                    'emailforwarding' => '1',
+                    'idprotection' => '1',
+                    'eppcode' => '1',
+                    'autoreg' => 'skrime'
+                ]);
+        }
+
+        Capsule::table('tblpricing')
+            ->where('type', '=', 'domainregister')
+            ->where('relid', '=', $query->value('id'))
+            ->update([
+                'msetupfee' => $price['create']
+            ]);
+
+        Capsule::table('tblpricing')
+            ->where('type', '=', 'domainrenew')
+            ->where('relid', '=', $query->value('id'))
+            ->update([
+                'msetupfee' => $price['renew']
+            ]);
+
+        Capsule::table('tblpricing')
+            ->where('type', '=', 'domaintransfer')
+            ->where('relid', '=', $query->value('id'))
+            ->update([
+                'msetupfee' => $price['transfer']
+            ]);
+    }
+
+    return ['success' => true, 'message' => 'TLDs and prices imported successfully'];
 }

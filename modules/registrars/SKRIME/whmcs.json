@@ -1,0 +1,30 @@
+{
+    "schema": "1.0",
+    "type": "whmcs-registrars",
+    "name": "SRKIME",
+    "license": "MIT",
+    "category": "registrar",
+    "description": {
+        "name": "SRKIME",
+        "tagline": "Domain Register via SKRIME",
+        "long": "Domain Register via SKRIME",
+        "features": [
+            "Domain Register via SKRIME"
+        ]
+    },
+    "logo": {
+        "filename": "logo.png"
+    },
+    "support": {
+        "homepage": "https://skrime.eu",
+        "email": "support@skrime.eu",
+        "support_url": "https://skrime.eu/support/overview",
+        "docs_url": "https://skrime.eu/support/overview"
+    },
+    "authors": [
+        {
+            "name": "Julien Michell Herwig",
+            "homepage": "https://github.com/CookieMC337"
+        }
+    ]
+}
