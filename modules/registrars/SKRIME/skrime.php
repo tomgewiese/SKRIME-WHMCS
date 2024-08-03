@@ -89,6 +89,13 @@ function extractStreetAndNumber($address)
     return [$address, ''];
 }
 
+function cleanOrganizationName($name)
+{
+    // Remove unwanted characters
+    return preg_replace('/[()ÄÖÜ]/', '', $name);
+}
+
+
 /**
  * Register a domain.
  *
@@ -103,7 +110,7 @@ function skrime_RegisterDomain($params)
         'domain' => $params['sld'] . '.' . $params['tld'],
         'authCode' => '',
         'contact' => [
-            'company' => $params["companyname"],
+            'company' => cleanOrganizationName($params["companyname"]),
             'firstname' => $params["firstname"],
             'lastname' => $params["lastname"],
             'street' => $street,
@@ -147,7 +154,7 @@ function skrime_TransferDomain($params)
         'domain' => $params['sld'] . '.' . $params['tld'],
         'authCode' => $params['eppcode'],
         'contact' => [
-            'company' => $params["companyname"],
+            'company' => cleanOrganizationName($params["companyname"]),
             'firstname' => $params["firstname"],
             'lastname' => $params["lastname"],
             'street' => $street,
@@ -422,9 +429,19 @@ function skrime_GetDNS($params)
  */
 function skrime_SaveDNS($params)
 {
+    // Transform the DNS records into the required format
+    $dnsRecords = [];
+    foreach ($params['dnsrecords'] as $record) {
+        $dnsRecords[] = [
+            'name' => $record['hostname'],
+            'type' => $record['type'],
+            'data' => $record['address'],
+        ];
+    }
+
     $postfields = [
         'domain' => $params['sld'] . '.' . $params['tld'],
-        'records' => $params['dnsrecords'],
+        'records' => $dnsRecords,
     ];
 
     try {
@@ -439,6 +456,7 @@ function skrime_SaveDNS($params)
         return ['error' => $e->getMessage()];
     }
 }
+
 
 /**
  * Fetch all domains.
@@ -483,12 +501,12 @@ function skrime_GetDomainPricelist($params)
 }
 
 /**
- * Fetch auth code for a domain.
+ * Get EPP code (AuthInfo) for a domain.
  *
  * @param array $params common module parameters
  * @return array
  */
-function skrime_GetAuthCode($params)
+function skrime_GetEPPCode($params)
 {
     $postfields = [
         'domain' => $params['sld'] . '.' . $params['tld'],
@@ -498,7 +516,7 @@ function skrime_GetAuthCode($params)
         $result = skrime_makeApiRequest('domain/authcode', $postfields, 'GET', $params);
 
         if ($result['state'] === 'success') {
-            return $result['data'];
+            return ['eppcode' => $result['data']['authcode']];
         }
 
         return ['error' => $result['response']];
@@ -508,56 +526,70 @@ function skrime_GetAuthCode($params)
 }
 
 /**
- * Synchronize TLDs and import prices from SKRIME.
+ * Synchronize domain information.
  *
+ * @param array $params common module parameters
  * @return array
  */
-function skrime_ImportTldAndPrices($params)
+function skrime_Sync($params)
+{
+    $postfields = [
+        'domain' => $params['sld'] . '.' . $params['tld'],
+    ];
+
+    try {
+        $result = skrime_makeApiRequest('domain/single', $postfields, 'GET', $params);
+
+        if ($result['state'] === 'success') {
+            $expirydate = $result['data']['expireAt'];
+            $active = $result['data']['state'] === 'active';
+            $transferredAway = $result['data']['state'] === 'transferredaway';
+
+            return [
+                'expirydate' => $expirydate,
+                'active' => $active,
+                'cancelled' => !$active,
+                'transferredAway' => $transferredAway,
+            ];
+        }
+
+        return ['error' => $result['response']];
+    } catch (\Exception $e) {
+        return ['error' => $e->getMessage()];
+    }
+}
+
+/**
+ * Get TLD Pricing.
+ *
+ * @param array $params common module parameters
+ * @return \WHMCS\Results\ResultsList
+ */
+function skrime_GetTldPricing(array $params)
 {
     $pricelist = skrime_GetDomainPricelist($params);
+
     if (isset($pricelist['error'])) {
         return ['error' => $pricelist['error']];
     }
 
-    foreach ($pricelist as $price) {
-        $tld = $price['tld'];
+    $results = new ResultsList();
 
-        $query = Capsule::table('tbldomainpricing')
-            ->where('extension', '=', $tld);
+    foreach ($pricelist as $extension) {
+        $item = (new ImportItem)
+            ->setExtension('.' . $extension['tld'])
+            ->setMinYears(1)
+            ->setMaxYears(10)
+            ->setRegisterPrice((float) $extension['create'])
+            ->setRenewPrice((float) $extension['renew'])
+            ->setTransferPrice((float) $extension['transfer'])
+            ->setRedemptionFeeDays(30)  // Adjust as needed
+            ->setRedemptionFeePrice((float) $extension['restore'])
+            ->setCurrency('EUR')
+            ->setEppRequired(true);
 
-        if ($query->count() == 0) {
-            Capsule::table('tbldomainpricing')
-                ->insert([
-                    'extension' => $tld,
-                    'dnsmanagement' => '1',
-                    'emailforwarding' => '1',
-                    'idprotection' => '1',
-                    'eppcode' => '1',
-                    'autoreg' => 'skrime'
-                ]);
-        }
-
-        Capsule::table('tblpricing')
-            ->where('type', '=', 'domainregister')
-            ->where('relid', '=', $query->value('id'))
-            ->update([
-                'msetupfee' => $price['create']
-            ]);
-
-        Capsule::table('tblpricing')
-            ->where('type', '=', 'domainrenew')
-            ->where('relid', '=', $query->value('id'))
-            ->update([
-                'msetupfee' => $price['renew']
-            ]);
-
-        Capsule::table('tblpricing')
-            ->where('type', '=', 'domaintransfer')
-            ->where('relid', '=', $query->value('id'))
-            ->update([
-                'msetupfee' => $price['transfer']
-            ]);
+        $results[] = $item;
     }
 
-    return ['success' => true, 'message' => 'TLDs and prices imported successfully'];
+    return $results;
 }
