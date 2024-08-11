@@ -16,7 +16,7 @@ This module allows the integration of SKRIME's domain registration service into 
 3. **Activate the Module:**
 
     - Log in to your WHMCS admin dashboard.
-    - Navigate to `Setup` > `Products/Services` > `Domain Registrars`.
+    - Navigate to `System Settings` > `Domain Registrars`.
     - Find `SKRIME` and click on `Activate`.
 
 4. **Configuration:**
