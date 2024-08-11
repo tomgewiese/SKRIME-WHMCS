@@ -6,18 +6,18 @@ This module allows the integration of SKRIME's domain registration service into 
 
 ## Installation
 
-1. **Download:** Download the `Modules.zip` file that contains the SKRIME WHMCS module.
+1. **Download:** Download the `modules.zip` file that contains the SKRIME WHMCS module.
 
-2. **Unzip:** Unzip the `Modules.zip` file in the root directory of your WHMCS installation. This will copy the necessary files into the appropriate directories.
+2. **Unzip:** Unzip the `modules.zip` file in the root directory of your WHMCS installation. This will copy the necessary files into the appropriate directories.
 
-    - The contents of the `Modules.zip` should be copied into the following directory:
-        - `/modules/registrars/skrimemodule/`
+    - The contents of the `modules.zip` should be copied into the following directory:
+        - `/modules/registrars/skrime/`
 
 3. **Activate the Module:**
 
     - Log in to your WHMCS admin dashboard.
     - Navigate to `Setup` > `Products/Services` > `Domain Registrars`.
-    - Find `Skrime` and click on `Activate`.
+    - Find `SKRIME` and click on `Activate`.
 
 4. **Configuration:**
 
