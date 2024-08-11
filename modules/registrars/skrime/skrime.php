@@ -46,7 +46,7 @@ function skrime_getConfigArray()
             'FriendlyName' => 'API Key',
             'Type' => 'text',
             'Size' => '50',
-            'Description' => 'Enter your skrime API Key here',
+            'Description' => 'Enter your SKRIME API Key here',
         ),
     );
 }
