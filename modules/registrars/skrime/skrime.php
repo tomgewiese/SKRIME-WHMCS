@@ -1,6 +1,6 @@
 <?php
 /**
- * WHMCS SDK Skrime Registrar Module
+ * WHMCS SDK SKRIME Registrar Module
  *
  * @see https://developers.whmcs.com/domain-registrars/
  *
@@ -40,19 +40,19 @@ function skrime_getConfigArray()
     return array(
         'FriendlyName' => array(
             'Type' => 'System',
-            'Value' => 'SKRIME',
+            'Value' => 'skrime',
         ),
         'apiKey' => array(
             'FriendlyName' => 'API Key',
             'Type' => 'text',
             'Size' => '50',
-            'Description' => 'Enter your SKRIME API Key here',
+            'Description' => 'Enter your skrime API Key here',
         ),
     );
 }
 
 /**
- * Helper function to make API requests to SKRIME
+ * Helper function to make API requests to skrime
  *
  * @param string $endpoint
  * @param array $postfields
@@ -121,6 +121,13 @@ function skrime_RegisterDomain($params)
             'country' => $params["countrycode"],
             'email' => $params["email"],
             'phone' => $params["fullphonenumber"],
+            'nameserver' => array_filter([
+                $params['ns1'],
+                $params['ns2'],
+                $params['ns3'],
+                $params['ns4'],
+                $params['ns5'],
+            ]),
         ],
         'tos' => true,
         'cancellation' => true,
@@ -149,7 +156,6 @@ function skrime_TransferDomain($params)
 {
     list($street, $number) = extractStreetAndNumber($params["address1"]);
 
-
     $postfields = [
         'domain' => $params['sld'] . '.' . $params['tld'],
         'authCode' => $params['eppcode'],
@@ -165,6 +171,13 @@ function skrime_TransferDomain($params)
             'country' => $params["countrycode"],
             'email' => $params["email"],
             'phone' => $params["fullphonenumber"],
+            'nameserver' => array_filter([
+                $params['ns1'],
+                $params['ns2'],
+                $params['ns3'],
+                $params['ns4'],
+                $params['ns5'],
+            ]),
         ],
         'tos' => true,
         'cancellation' => true,
@@ -230,7 +243,6 @@ function skrime_GetNameservers($params)
                 'ns3' => isset($result['data']['nameserver'][2]) ? $result['data']['nameserver'][2] : '',
                 'ns4' => isset($result['data']['nameserver'][3]) ? $result['data']['nameserver'][3] : '',
                 'ns5' => isset($result['data']['nameserver'][4]) ? $result['data']['nameserver'][4] : '',
-                'ns6' => isset($result['data']['nameserver'][5]) ? $result['data']['nameserver'][5] : '',
             ];
         }
 
@@ -256,7 +268,6 @@ function skrime_SaveNameservers($params)
             $params['ns3'],
             $params['ns4'],
             $params['ns5'],
-            $params['ns6'],
         ]),
     ];
 
@@ -286,24 +297,24 @@ function skrime_GetContactDetails($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/single', $postfields, 'GET', $params);
+        $result = skrime_makeApiRequest('domain/contact', $postfields, 'GET', $params);
 
         if ($result['state'] === 'success') {
-            $contact = $result['data']['productInfo']['contact'];
+            $contact = $result['data']['contact'];
 
             return [
                 'Registrant' => [
-                    'First Name' => isset($contact['firstname']) ? $contact['firstname'] : '',
-                    'Last Name' => isset($contact['lastname']) ? $contact['lastname'] : '',
-                    'Company Name' => isset($contact['company']) ? $contact['company'] : '',
-                    'Email Address' => isset($contact['email']) ? $contact['email'] : '',
-                    'Address 1' => isset($contact['street']) ? $contact['street'] : '',
-                    'Address 2' => isset($contact['number']) ? $contact['number'] : '',
-                    'City' => isset($contact['city']) ? $contact['city'] : '',
-                    'State' => isset($contact['state']) ? $contact['state'] : '',
-                    'Postcode' => isset($contact['postcode']) ? $contact['postcode'] : '',
-                    'Country' => isset($contact['country']) ? $contact['country'] : '',
-                    'Phone Number' => isset($contact['phone']) ? $contact['phone'] : '',
+                    'First Name' => $contact['firstname'],
+                    'Last Name' => $contact['lastname'],
+                    'Company Name' => $contact['company'],
+                    'Email Address' => $contact['email'],
+                    'Address 1' => $contact['street'],
+                    'Address 2' => $contact['number'],
+                    'City' => $contact['city'],
+                    'State' => $contact['state'],
+                    'Postcode' => $contact['postcode'],
+                    'Country' => $contact['country'],
+                    'Phone Number' => $contact['phone'],
                 ],
             ];
         }
@@ -322,14 +333,16 @@ function skrime_GetContactDetails($params)
  */
 function skrime_SaveContactDetails($params)
 {
+    list($street, $number) = extractStreetAndNumber($params["address1"]);
+
     $postfields = [
         'domain' => $params['sld'] . '.' . $params['tld'],
         'contact' => [
             'company' => $params["companyname"],
             'firstname' => $params["firstname"],
             'lastname' => $params["lastname"],
-            'street' => $params["address1"],
-            'number' => '',
+            'street' => $street,
+            'number' => $number,
             'postcode' => $params["postcode"],
             'city' => $params["city"],
             'state' => $params["state"],
@@ -340,7 +353,7 @@ function skrime_SaveContactDetails($params)
     ];
 
     try {
-        $result = skrime_makeApiRequest('domain/order', $postfields, 'POST', $params);
+        $result = skrime_makeApiRequest('domain/contact', $postfields, 'POST', $params);
 
         if ($result['state'] === 'success') {
             return ['success' => true];
@@ -560,7 +573,7 @@ function skrime_Sync($params)
 }
 
 /**
- * Get TLD Pricing.
+ * Get TLD Pricing
  *
  * @param array $params common module parameters
  * @return \WHMCS\Results\ResultsList
