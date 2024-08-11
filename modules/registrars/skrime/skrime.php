@@ -348,7 +348,7 @@ function skrime_SaveContactDetails($params)
             'state' => $params["state"],
             'country' => $params["countrycode"],
             'email' => $params["email"],
-            'phone' => $params["phonenumber"],
+            'phone' => $params["fullphonenumber"],
         ],
     ];
 
