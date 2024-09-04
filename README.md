@@ -4,6 +4,11 @@
 
 This module allows the integration of SKRIME's domain registration service into WHMCS. With this module, you can register, renew, and manage domains through SKRIME directly from your WHMCS dashboard.
 
+## System Requirements
+
+- WHMCS version 7.0 or higher
+- PHP version 7.2 or higher
+
 ## Installation
 
 1. **Download:** Download the `modules.zip` file that contains the SKRIME WHMCS module.
@@ -35,4 +40,12 @@ After configuration, you can use SKRIME as a domain registrar within your WHMCS 
 
 ## Support
 
-If you need assistance with installing or using the module, please contact SKRIME support.
+If you need assistance with installing or using the module, please contact SKRIME support through our ticket system:
+
+- Support ticket: https://skrime.eu/support/overview
+
+Our support team will be happy to assist you with any questions or issues you may encounter.
+
+## License
+
+This module is released under the MIT License. See the LICENSE file for more details.
