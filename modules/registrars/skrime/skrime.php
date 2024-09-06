@@ -596,8 +596,6 @@ function skrime_GetTldPricing(array $params)
     $results = new ResultsList();
 
     foreach ($pricelist as $extension) {
-        logActivity("SKRIME TLD Pricelist TLD: " . $extension['tld']);
-
         $item = (new ImportItem)
             ->setExtension($extension['tld'])
             ->setMinYears(1)
