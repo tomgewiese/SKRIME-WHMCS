@@ -554,21 +554,26 @@ function skrime_Sync($params)
     try {
         $result = skrime_makeApiRequest('domain/single', $postfields, 'GET', $params);
 
-        logActivity("SKRIME Sync Response: " . print_r($result, true));
+        if (strtolower($result['response']) === "no product found"){
+            return [
+                'expirydate' => date('Y-m-d'),
+                'active' => false,
+                'cancelled' => true,
+                'transferredAway' => false,
+            ];
+        }
 
         if ($result['state'] === 'success') {
-            $active = $result['data']['state'] === 'active';
-            $transferredAway = $result['data']['state'] === 'transferredaway';
-
+            $expirydate = null;
             if (isset($result['data']['expireAt'])) {
                 $expirydate = date('Y-m-d', strtotime($result['data']['expireAt']));
             }
 
             return [
                 'expirydate' => $expirydate,
-                'active' => $active,
-                'cancelled' => !$active,
-                'transferredAway' => $transferredAway,
+                'active' => true,
+                'cancelled' => false,
+                'transferredAway' => false,
             ];
         }
 
