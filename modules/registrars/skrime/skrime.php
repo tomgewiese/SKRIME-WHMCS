@@ -16,6 +16,7 @@ use WHMCS\Domains\DomainLookup\ResultsList;
 use WHMCS\Domains\DomainLookup\SearchResult;
 use GuzzleHttp\Client;
 use WHMCS\Database\Capsule;
+use WHMCS\Domain\TopLevel\ImportItem;
 
 /**
  * Define module related metadata
@@ -553,10 +554,15 @@ function skrime_Sync($params)
     try {
         $result = skrime_makeApiRequest('domain/single', $postfields, 'GET', $params);
 
+        logActivity("SKRIME Sync Response: " . print_r($result, true));
+
         if ($result['state'] === 'success') {
-            $expirydate = $result['data']['expireAt'];
             $active = $result['data']['state'] === 'active';
             $transferredAway = $result['data']['state'] === 'transferredaway';
+
+            if (isset($result['data']['expireAt'])) {
+                $expirydate = date('Y-m-d', strtotime($result['data']['expireAt']));
+            }
 
             return [
                 'expirydate' => $expirydate,
@@ -576,21 +582,24 @@ function skrime_Sync($params)
  * Get TLD Pricing
  *
  * @param array $params common module parameters
- * @return \WHMCS\Results\ResultsList
+ * @return ResultsList
  */
 function skrime_GetTldPricing(array $params)
 {
     $pricelist = skrime_GetDomainPricelist($params);
 
     if (isset($pricelist['error'])) {
+        logActivity("SKRIME GetTldPricing Error: " . $pricelist['error']);
         return ['error' => $pricelist['error']];
     }
 
     $results = new ResultsList();
 
     foreach ($pricelist as $extension) {
+        logActivity("SKRIME TLD Pricelist TLD: " . $extension['tld']);
+
         $item = (new ImportItem)
-            ->setExtension('.' . $extension['tld'])
+            ->setExtension($extension['tld'])
             ->setMinYears(1)
             ->setMaxYears(10)
             ->setRegisterPrice((float) $extension['create'])
