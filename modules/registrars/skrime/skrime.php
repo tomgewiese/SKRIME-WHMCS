@@ -554,7 +554,7 @@ function skrime_Sync($params)
     try {
         $result = skrime_makeApiRequest('domain/single', $postfields, 'GET', $params);
 
-        if (strtolower($result['response']) === "no product found"){
+        if (strtolower($result['response']) === "no product found") {
             return [
                 'expirydate' => date('Y-m-d'),
                 'active' => false,
@@ -579,9 +579,18 @@ function skrime_Sync($params)
 
         return ['error' => $result['response']];
     } catch (\Exception $e) {
+        if (strpos($e->getMessage(), '404') !== false) {
+            return [
+                'expirydate' => date('Y-m-d'),
+                'active' => false,
+                'cancelled' => true,
+                'transferredAway' => false,
+            ];
+        }
         return ['error' => $e->getMessage()];
     }
 }
+
 
 /**
  * Get TLD Pricing
